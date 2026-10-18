@@ -1,0 +1,64 @@
+{{- if .Values.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "atlas.fullname" . }}-migrate-{{ .Release.Revision }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "atlas.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+  annotations:
+    # Run before the api/worker pods of this revision are rolled out.
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.migrations.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "atlas.componentSelectorLabels" (dict "root" . "component" "migration") | nindent 8 }}
+      annotations:
+        # Keep service-mesh sidecars out of a run-to-completion Job.
+        sidecar.istio.io/inject: "false"
+        linkerd.io/inject: disabled
+    spec:
+      restartPolicy: OnFailure
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "atlas.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: migrate
+          image: {{ include "atlas.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Image ENTRYPOINT (tini -> atlas-entrypoint) waits for the DB, then execs args.
+          # ATLAS_WAIT_FOR_TEMPORAL=0 below: migrations need only PostgreSQL.
+          args:
+            - sh
+            - -c
+            - alembic upgrade head{{ if .Values.migrations.seed }} && atlas-seed{{ end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          envFrom:
+            {{- include "atlas.envFrom" . | nindent 12 }}
+          env:
+            - name: ATLAS_WAIT_FOR_TEMPORAL
+              value: "0"
+            - name: ATLAS_RUN_MIGRATIONS
+              value: "0"
+            - name: ATLAS_SEED
+              value: "0"
+          resources:
+            {{- toYaml .Values.migrations.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "atlas.scratchVolumeMounts" . | nindent 12 }}
+      volumes:
+        {{- include "atlas.scratchVolumes" . | nindent 8 }}
+{{- end }}

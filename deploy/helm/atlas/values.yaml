@@ -1,0 +1,190 @@
+# Default values for the ATLAS Helm chart.
+# PostgreSQL and Temporal are treated as EXTERNAL dependencies (managed DB / Temporal Cloud or
+# the official temporal chart). This chart deploys only the ATLAS API, worker and migration job.
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: ghcr.io/ddabros/atlas
+  tag: ""            # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# ---------------------------------------------------------------------------
+# Non-secret application configuration -> ConfigMap (ATLAS_* env vars)
+# ---------------------------------------------------------------------------
+config:
+  environment: prod
+  logLevel: INFO
+  logJson: "true"
+  apiPort: 8000
+  idempotencyTtlSeconds: 86400
+  temporal:
+    host: temporal-frontend.temporal.svc.cluster.local:7233
+    namespace: default
+    taskQueue: atlas-orchestration
+    tls: "false"
+  adapter:
+    backend: mock              # mock | iosxr | junos
+    mockFailureMode: NONE
+    mockLatencyMs: 50
+    credentialsRef: k8s-secret # env | k8s-secret | vault
+  pools:
+    bgpAsn: 65000
+    rdPoolStart: 1000
+    rdPoolEnd: 1999
+    rtPoolStart: 100
+    rtPoolEnd: 999
+    vlanPoolStart: 100
+    vlanPoolEnd: 4000
+    peCeSupernet: 10.255.0.0/16
+  reconciliationMode: DETECT_ONLY
+  metricsEnabled: "true"
+  otel:
+    enabled: "false"
+    endpoint: http://otel-collector.observability.svc.cluster.local:4317
+  # Arbitrary extra ATLAS_* (or other) env vars added verbatim to the ConfigMap.
+  extraEnv: {}
+
+# ---------------------------------------------------------------------------
+# Secrets. Either reference an existing Secret (recommended; e.g. created by
+# External Secrets Operator / Vault injector) or let the chart render one.
+# ---------------------------------------------------------------------------
+secrets:
+  # Name of a pre-existing Secret whose keys are env-var names consumed via envFrom:
+  #   ATLAS_DATABASE_URL, ATLAS_API_KEYS (JSON list), ATLAS_DEVICE_USERNAME, ATLAS_DEVICE_PASSWORD
+  existingSecret: ""
+  # Used only when existingSecret is empty. DO NOT commit real values; pass with --set / -f secrets.yaml.
+  databaseUrl: postgresql+asyncpg://atlas:atlas@postgres.atlas.svc.cluster.local:5432/atlas
+  apiKeys: '["change-me-operator-key"]'
+  deviceUsername: atlas
+  devicePassword: ""
+
+# ---------------------------------------------------------------------------
+# API gateway deployment
+# ---------------------------------------------------------------------------
+api:
+  replicaCount: 2
+  podAnnotations: {}
+  podLabels: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+  priorityClassName: ""
+  terminationGracePeriodSeconds: 30
+  pdb:
+    enabled: true
+    minAvailable: 1
+  hpa:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: ""
+  service:
+    type: ClusterIP
+    port: 80
+    annotations: {}
+  ingress:
+    enabled: false
+    className: nginx
+    annotations: {}
+      # cert-manager.io/cluster-issuer: letsencrypt
+    hosts:
+      - host: atlas.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+      # - secretName: atlas-tls
+      #   hosts: [atlas.example.com]
+
+# ---------------------------------------------------------------------------
+# Temporal worker deployment
+# ---------------------------------------------------------------------------
+worker:
+  replicaCount: 2
+  metricsPort: 9090
+  podAnnotations: {}
+  podLabels: {}
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+  priorityClassName: ""
+  # Long enough for in-flight activities (device provisioning up to 5 min start_to_close) to
+  # heartbeat and be handed over to another worker; Temporal makes this safe.
+  terminationGracePeriodSeconds: 120
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+# ---------------------------------------------------------------------------
+# Database migration job (Helm hook: pre-install, pre-upgrade)
+# ---------------------------------------------------------------------------
+migrations:
+  enabled: true
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 3600
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  # Seed demo inventory (PE1..PE3 + ACME customer) after migrating — dev/staging only.
+  seed: false
+
+# ---------------------------------------------------------------------------
+# Observability
+# ---------------------------------------------------------------------------
+serviceMonitor:
+  enabled: false
+  namespace: ""          # defaults to release namespace
+  interval: 15s
+  scrapeTimeout: 10s
+  labels: {}             # e.g. release: kube-prometheus-stack
+
+# ---------------------------------------------------------------------------
+# Pod hardening (applied to api, worker and migration job)
+# ---------------------------------------------------------------------------
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+
+networkPolicy:
+  enabled: false

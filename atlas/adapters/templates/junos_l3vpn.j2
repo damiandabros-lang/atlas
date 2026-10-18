@@ -1,0 +1,58 @@
+{# ATLAS — Juniper Junos MPLS L3VPN endpoint configuration (service {{ service_id }}) #}
+{% set ifd = interface.name | junos_ifd %}
+{% set unit = interface.vlan if interface.vlan is not none else 0 %}
+interfaces {
+    {{ ifd }} {
+{% if interface.vlan is not none %}
+        vlan-tagging;
+{% endif %}
+        unit {{ unit }} {
+            description "ATLAS {{ vrf.name }} endpoint {{ endpoint_id }}";
+{% if interface.vlan is not none %}
+            vlan-id {{ interface.vlan }};
+{% endif %}
+{% if not interface.admin_up %}
+            disable;
+{% endif %}
+            family inet {
+                address {{ interface.ip }}/{{ interface.prefix_length }};
+            }
+        }
+    }
+}
+routing-instances {
+    {{ vrf.name }} {
+        description "ATLAS service {{ service_id }}";
+        instance-type vrf;
+        interface {{ ifd }}.{{ unit }};
+        route-distinguisher {{ vrf.rd }};
+        vrf-target {
+{% for rt in vrf.rt_import %}
+            import target:{{ rt }};
+{% endfor %}
+{% for rt in vrf.rt_export %}
+            export target:{{ rt }};
+{% endfor %}
+        }
+        vrf-table-label;
+{% if static is defined %}
+        routing-options {
+            static {
+                route {{ static.prefix }} next-hop {{ static.next_hop }};
+            }
+        }
+{% endif %}
+{% if bgp.neighbor is defined %}
+        protocols {
+            bgp {
+                group ATLAS-CE-{{ vrf.name }} {
+                    type external;
+                    peer-as {{ bgp.remote_asn }};
+                    as-override;
+                    neighbor {{ bgp.neighbor }};
+                }
+            }
+        }
+{% endif %}
+    }
+}

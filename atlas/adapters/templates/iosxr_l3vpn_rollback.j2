@@ -1,0 +1,13 @@
+{# ATLAS — Cisco IOS XR rollback: removes ONLY service-owned objects (service {{ service_id }}) #}
+{% set ifname = interface.name ~ ('.' ~ interface.vlan if interface.vlan is not none else '') %}
+router bgp {{ bgp.asn }}
+ no vrf {{ vrf.name }}
+!
+{% if static is defined %}
+router static
+ no vrf {{ vrf.name }}
+!
+{% endif %}
+no interface {{ ifname }}
+no vrf {{ vrf.name }}
+end

@@ -1,0 +1,32 @@
+ATLAS {{ .Chart.AppVersion }} has been deployed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Components
+  API gateway : deployment/{{ include "atlas.fullname" . }}-api      ({{ .Values.api.replicaCount }} replicas{{ if .Values.api.hpa.enabled }}, HPA {{ .Values.api.hpa.minReplicas }}-{{ .Values.api.hpa.maxReplicas }}{{ end }})
+  Worker      : deployment/{{ include "atlas.fullname" . }}-worker   ({{ .Values.worker.replicaCount }} replicas, task queue "{{ .Values.config.temporal.taskQueue }}")
+  Migrations  : job/{{ include "atlas.fullname" . }}-migrate-{{ .Release.Revision }} (pre-install/pre-upgrade hook)
+  Secrets     : {{ include "atlas.secretName" . }}{{ if .Values.secrets.existingSecret }} (existing){{ else }} (rendered by chart — switch to secrets.existingSecret for production){{ end }}
+
+External dependencies (not managed by this chart)
+  PostgreSQL  : from ATLAS_DATABASE_URL in the Secret
+  Temporal    : {{ .Values.config.temporal.host }} (namespace "{{ .Values.config.temporal.namespace }}")
+
+Access the API
+{{- if .Values.api.ingress.enabled }}
+{{- range .Values.api.ingress.hosts }}
+  http{{ if $.Values.api.ingress.tls }}s{{ end }}://{{ .host }}/docs
+{{- end }}
+{{- else }}
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "atlas.fullname" . }}-api 8000:{{ .Values.api.service.port }}
+  open http://localhost:8000/docs
+{{- end }}
+
+Smoke test
+  curl -s http://localhost:8000/api/v1/health
+  curl -s -H "X-API-Key: <key>" http://localhost:8000/api/v1/devices
+
+Observability
+  API metrics    : /api/v1/metrics on the api Service
+  Worker metrics : svc/{{ include "atlas.fullname" . }}-worker-metrics:{{ .Values.worker.metricsPort }}/metrics
+  ServiceMonitor : {{ if .Values.serviceMonitor.enabled }}enabled{{ else }}disabled (set serviceMonitor.enabled=true with kube-prometheus-stack){{ end }}
+
+Failure injection is {{ .Values.config.adapter.mockFailureMode }} (config.adapter.mockFailureMode). Reconciliation mode: {{ .Values.config.reconciliationMode }}.

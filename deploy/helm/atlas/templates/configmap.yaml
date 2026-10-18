@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "atlas.configMapName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "atlas.labels" . | nindent 4 }}
+data:
+  ATLAS_ENVIRONMENT: {{ .Values.config.environment | quote }}
+  ATLAS_LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  ATLAS_LOG_JSON: {{ .Values.config.logJson | quote }}
+  ATLAS_API_HOST: "0.0.0.0"
+  ATLAS_API_PORT: {{ .Values.config.apiPort | quote }}
+  ATLAS_IDEMPOTENCY_TTL_SECONDS: {{ .Values.config.idempotencyTtlSeconds | quote }}
+  ATLAS_TEMPORAL_HOST: {{ .Values.config.temporal.host | quote }}
+  ATLAS_TEMPORAL_NAMESPACE: {{ .Values.config.temporal.namespace | quote }}
+  ATLAS_TEMPORAL_TASK_QUEUE: {{ .Values.config.temporal.taskQueue | quote }}
+  ATLAS_TEMPORAL_TLS: {{ .Values.config.temporal.tls | quote }}
+  ATLAS_ADAPTER_BACKEND: {{ .Values.config.adapter.backend | quote }}
+  ATLAS_MOCK_FAILURE_MODE: {{ .Values.config.adapter.mockFailureMode | quote }}
+  ATLAS_MOCK_LATENCY_MS: {{ .Values.config.adapter.mockLatencyMs | quote }}
+  ATLAS_DEVICE_CREDENTIALS_REF: {{ .Values.config.adapter.credentialsRef | quote }}
+  ATLAS_BGP_ASN: {{ .Values.config.pools.bgpAsn | quote }}
+  ATLAS_RD_POOL_START: {{ .Values.config.pools.rdPoolStart | quote }}
+  ATLAS_RD_POOL_END: {{ .Values.config.pools.rdPoolEnd | quote }}
+  ATLAS_RT_POOL_START: {{ .Values.config.pools.rtPoolStart | quote }}
+  ATLAS_RT_POOL_END: {{ .Values.config.pools.rtPoolEnd | quote }}
+  ATLAS_VLAN_POOL_START: {{ .Values.config.pools.vlanPoolStart | quote }}
+  ATLAS_VLAN_POOL_END: {{ .Values.config.pools.vlanPoolEnd | quote }}
+  ATLAS_PE_CE_SUPERNET: {{ .Values.config.pools.peCeSupernet | quote }}
+  ATLAS_RECONCILIATION_MODE: {{ .Values.config.reconciliationMode | quote }}
+  ATLAS_METRICS_ENABLED: {{ .Values.config.metricsEnabled | quote }}
+  ATLAS_OTEL_ENABLED: {{ .Values.config.otel.enabled | quote }}
+  ATLAS_OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.otel.endpoint | quote }}
+  # Containers never run migrations on start in Kubernetes — the pre-install/pre-upgrade Job does.
+  ATLAS_RUN_MIGRATIONS: "0"
+  ATLAS_SEED: "0"
+  ATLAS_WAIT_FOR_DB: "1"
+  ATLAS_WAIT_FOR_TEMPORAL: "1"
+  {{- range $key, $value := .Values.config.extraEnv }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}

@@ -1,0 +1,29 @@
+# Temporal dynamic config for local development (SQL persistence).
+# Mounted into temporalio/auto-setup at /etc/temporal/config/dynamicconfig/.
+# Reference: https://github.com/temporalio/temporal/blob/main/docker/dynamicconfig/development-sql.yaml
+
+# Allow the worker to use a smaller history batch for faster local replays.
+limit.maxIDLength:
+  - value: 255
+    constraints: {}
+
+# Advanced visibility is unavailable on SQL in this image version; keep basic list queries fast.
+system.forceSearchAttributesCacheRefreshOnRead:
+  - value: true
+    constraints: {}
+
+# ATLAS workflows are long-running (minutes); allow a few more pending activities per workflow
+# than the conservative default so a 64-endpoint L3VPN can fan out if the implementation does.
+limit.numPendingActivities.error:
+  - value: 500
+    constraints: {}
+
+# Keep workflow task timeouts generous for local debugging under a stepping debugger.
+history.defaultWorkflowTaskTimeout:
+  - value: 30s
+    constraints: {}
+
+# Per-namespace RPS limit — raised so demo scripts polling status do not get throttled.
+frontend.namespaceRPS:
+  - value: 2400
+    constraints: {}

@@ -1,0 +1,22 @@
+apiVersion: v2
+name: atlas
+description: ATLAS — Enterprise Network Service Orchestration Platform (FastAPI gateway + Temporal worker for MPLS L3VPN provisioning)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.27.0-0"
+home: https://github.com/ddabros/atlas
+sources:
+  - https://github.com/ddabros/atlas
+keywords:
+  - network-automation
+  - orchestration
+  - temporal
+  - mpls
+  - l3vpn
+  - fastapi
+maintainers:
+  - name: Damian Dąbroś
+    url: https://github.com/ddabros
+annotations:
+  artifacthub.io/license: MIT

@@ -1,0 +1,5 @@
+{# ATLAS — Juniper Junos rollback (set-format): removes ONLY service-owned objects (service {{ service_id }}) #}
+{% set ifd = interface.name | junos_ifd %}
+{% set unit = interface.vlan if interface.vlan is not none else 0 %}
+delete routing-instances {{ vrf.name }}
+delete interfaces {{ ifd }} unit {{ unit }}

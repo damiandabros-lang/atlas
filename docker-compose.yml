@@ -1,0 +1,224 @@
+# ATLAS — local development / demo stack
+#
+#   docker compose up -d --build            # core stack
+#   docker compose --profile tracing up -d  # + otel-collector + jaeger
+#   docker compose --profile tools up -d    # + temporal-admin-tools (tctl / temporal CLI)
+#
+# Ports:  API 8000 · Temporal UI 8080 · Grafana 3000 · Prometheus 9091 · Jaeger 16686
+name: atlas
+
+x-atlas-image: &atlas-image
+  image: ${ATLAS_IMAGE:-ghcr.io/ddabros/atlas:dev}
+  build:
+    context: .
+    dockerfile: deploy/docker/Dockerfile
+
+x-atlas-env: &atlas-env
+  ATLAS_ENVIRONMENT: ${ATLAS_ENVIRONMENT:-dev}
+  ATLAS_LOG_LEVEL: ${ATLAS_LOG_LEVEL:-INFO}
+  ATLAS_LOG_JSON: ${ATLAS_LOG_JSON:-true}
+  ATLAS_DATABASE_URL: postgresql+asyncpg://atlas:atlas@postgres:5432/atlas
+  ATLAS_TEMPORAL_HOST: temporal:7233
+  ATLAS_TEMPORAL_NAMESPACE: ${ATLAS_TEMPORAL_NAMESPACE:-default}
+  ATLAS_TEMPORAL_TASK_QUEUE: ${ATLAS_TEMPORAL_TASK_QUEUE:-atlas-orchestration}
+  ATLAS_API_KEYS: ${ATLAS_API_KEYS:-["dev-operator-key"]}
+  ATLAS_ADAPTER_BACKEND: ${ATLAS_ADAPTER_BACKEND:-mock}
+  ATLAS_RECONCILIATION_MODE: ${ATLAS_RECONCILIATION_MODE:-DETECT_ONLY}
+  ATLAS_METRICS_ENABLED: "true"
+  ATLAS_OTEL_ENABLED: ${ATLAS_OTEL_ENABLED:-false}
+  ATLAS_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+
+services:
+  # ---------------------------------------------------------------- data ----
+  postgres:
+    image: postgres:16
+    container_name: atlas-postgres
+    environment:
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: atlas
+      POSTGRES_DB: atlas
+    command: ["postgres", "-c", "max_connections=200", "-c", "shared_buffers=256MB"]
+    ports:
+      - "${ATLAS_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atlas -d atlas"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  # ------------------------------------------------------------ temporal ----
+  # auto-setup creates the `temporal` and `temporal_visibility` databases in the
+  # same PostgreSQL instance (separate from the ATLAS business database).
+  temporal:
+    image: temporalio/auto-setup:1.25
+    container_name: atlas-temporal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB: postgres12
+      DB_PORT: "5432"
+      POSTGRES_USER: atlas
+      POSTGRES_PWD: atlas
+      POSTGRES_SEEDS: postgres
+      DBNAME: temporal
+      VISIBILITY_DBNAME: temporal_visibility
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+      ENABLE_ES: "false"
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CLI_ADDRESS: temporal:7233
+      LOG_LEVEL: warn
+    ports:
+      - "${ATLAS_TEMPORAL_PORT:-7233}:7233"
+    volumes:
+      - ./deploy/temporal/dynamicconfig:/etc/temporal/config/dynamicconfig:ro
+    healthcheck:
+      test: ["CMD-SHELL", "temporal operator cluster health --address temporal:7233 2>/dev/null | grep -q SERVING"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
+  temporal-ui:
+    image: temporalio/ui:2.31.2
+    container_name: atlas-temporal-ui
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:3000
+      TEMPORAL_UI_PORT: "8080"
+    ports:
+      - "${ATLAS_TEMPORAL_UI_PORT:-8080}:8080"
+    restart: unless-stopped
+
+  temporal-admin-tools:
+    image: temporalio/admin-tools:1.25
+    container_name: atlas-temporal-admin-tools
+    profiles: ["tools"]
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CLI_ADDRESS: temporal:7233
+    stdin_open: true
+    tty: true
+
+  # --------------------------------------------------------------- atlas ----
+  api:
+    <<: *atlas-image
+    container_name: atlas-api
+    command: ["atlas-api"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    environment:
+      <<: *atlas-env
+      ATLAS_RUN_MIGRATIONS: "1"
+      ATLAS_SEED: "1"
+      ATLAS_API_HOST: 0.0.0.0
+      ATLAS_API_PORT: "8000"
+      ATLAS_OTEL_SERVICE_NAME: atlas-api
+    ports:
+      - "${ATLAS_API_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  worker:
+    <<: *atlas-image
+    container_name: atlas-worker
+    command: ["atlas-worker"]
+    depends_on:
+      api:
+        condition: service_healthy   # api runs migrations + seed first
+    environment:
+      <<: *atlas-env
+      ATLAS_RUN_MIGRATIONS: "0"
+      ATLAS_SEED: "0"
+      ATLAS_OTEL_SERVICE_NAME: atlas-worker
+      ATLAS_MOCK_FAILURE_MODE: ${ATLAS_MOCK_FAILURE_MODE:-NONE}
+      ATLAS_MOCK_LATENCY_MS: ${ATLAS_MOCK_LATENCY_MS:-50}
+    ports:
+      # worker Prometheus exporter (atlas_workflow_*, atlas_device_operation_*)
+      - "${ATLAS_WORKER_METRICS_PORT:-9090}:9090"
+    healthcheck:
+      disable: true   # worker has no HTTP endpoint besides metrics; Temporal UI shows poller liveness
+    stop_grace_period: 120s
+    restart: unless-stopped
+
+  # ------------------------------------------------------- observability ----
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: atlas-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-lifecycle
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${ATLAS_PROMETHEUS_PORT:-9091}:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: atlas-grafana
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/atlas.json
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "${ATLAS_GRAFANA_PORT:-3000}:3000"
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.109.0
+    container_name: atlas-otel-collector
+    profiles: ["tracing"]
+    command: ["--config=/etc/otelcol/collector.yaml"]
+    volumes:
+      - ./deploy/otel/collector.yaml:/etc/otelcol/collector.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    depends_on:
+      - jaeger
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    container_name: atlas-jaeger
+    profiles: ["tracing"]
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "${ATLAS_JAEGER_PORT:-16686}:16686"
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  prometheus-data:
+  grafana-data:

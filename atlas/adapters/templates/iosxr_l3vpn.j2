@@ -1,0 +1,62 @@
+{# ATLAS — Cisco IOS XR MPLS L3VPN endpoint configuration (service {{ service_id }}) #}
+{% set ifname = interface.name ~ ('.' ~ interface.vlan if interface.vlan is not none else '') %}
+vrf {{ vrf.name }}
+ description ATLAS service {{ service_id }}
+ address-family ipv4 unicast
+  import route-target
+{% for rt in vrf.rt_import %}
+   {{ rt }}
+{% endfor %}
+  !
+  export route-target
+{% for rt in vrf.rt_export %}
+   {{ rt }}
+{% endfor %}
+  !
+ !
+!
+interface {{ ifname }}
+ description ATLAS {{ vrf.name }} endpoint {{ endpoint_id }}
+ vrf {{ vrf.name }}
+ ipv4 address {{ interface.ip }} {{ interface.prefix_length | netmask }}
+{% if interface.vlan is not none %}
+ encapsulation dot1q {{ interface.vlan }}
+{% endif %}
+{% if interface.admin_up %}
+ no shutdown
+{% else %}
+ shutdown
+{% endif %}
+!
+{% if static is defined %}
+router static
+ vrf {{ vrf.name }}
+  address-family ipv4 unicast
+   {{ static.prefix }} {{ static.next_hop }}
+  !
+ !
+!
+{% endif %}
+router bgp {{ bgp.asn }}
+ vrf {{ vrf.name }}
+  rd {{ vrf.rd }}
+  address-family ipv4 unicast
+   redistribute connected
+{% if static is defined %}
+   redistribute static
+{% endif %}
+  !
+{% if bgp.neighbor is defined %}
+  neighbor {{ bgp.neighbor }}
+   remote-as {{ bgp.remote_asn }}
+   description ATLAS CE {{ vrf.name }}
+   address-family ipv4 unicast
+    route-policy ATLAS-PASS-ALL in
+    route-policy ATLAS-PASS-ALL out
+    as-override
+   !
+  !
+{% endif %}
+ !
+!
+end
