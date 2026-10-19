@@ -1,0 +1,47 @@
+# Local Kubernetes (OrbStack / Docker Desktop / kind) overrides for the ATLAS chart.
+# Pair with deploy/k8s/dev-deps.yaml (in-cluster PostgreSQL + Temporal). See docs/KUBERNETES.md.
+
+image:
+  repository: atlas          # built locally: `docker build -t atlas:dev -f deploy/docker/Dockerfile .`
+  tag: dev
+  pullPolicy: IfNotPresent   # OrbStack's Kubernetes shares the local Docker image store
+
+config:
+  environment: dev
+  logJson: "false"
+  temporal:
+    host: temporal.atlas.svc.cluster.local:7233
+  adapter:
+    backend: mock
+    credentialsRef: env
+
+secrets:
+  databaseUrl: postgresql+asyncpg://atlas:atlas@postgres.atlas.svc.cluster.local:5432/atlas
+  apiKeys: '["dev-operator-key"]'
+  deviceUsername: atlas
+  devicePassword: "dev"
+
+migrations:
+  enabled: true
+  seed: true
+
+api:
+  replicaCount: 1
+  pdb:
+    enabled: false
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: "1", memory: 512Mi }
+
+worker:
+  replicaCount: 1
+  pdb:
+    enabled: false
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: "1", memory: 512Mi }
+
+serviceMonitor:
+  enabled: false
+networkPolicy:
+  enabled: false

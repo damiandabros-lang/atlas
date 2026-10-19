@@ -133,3 +133,34 @@ helm-template: ## Render the chart with every optional resource enabled
 clean: ## Remove caches, build artefacts and coverage
 	rm -rf .pytest_cache .ruff_cache .mypy_cache htmlcov coverage.xml .coverage dist build *.egg-info
 	find . -type d -name __pycache__ -not -path "./$(VENV)/*" -exec rm -rf {} +
+
+# ---------------------------------------------------------------------------
+# Local Kubernetes (OrbStack / Docker Desktop / kind)
+# ---------------------------------------------------------------------------
+KUBECTL ?= kubectl
+K8S_NS  ?= atlas
+
+.PHONY: k8s-up k8s-down k8s-status k8s-forward k8s-demo
+
+k8s-up: ## Build image, deploy in-cluster Postgres+Temporal, install the chart (namespace atlas)
+	docker build -t atlas:dev -f deploy/docker/Dockerfile .
+	$(KUBECTL) apply -f deploy/k8s/dev-deps.yaml
+	$(KUBECTL) -n $(K8S_NS) rollout status deploy/postgres --timeout=180s
+	$(KUBECTL) -n $(K8S_NS) rollout status deploy/temporal --timeout=300s
+	$(HELM) upgrade --install atlas deploy/helm/atlas -n $(K8S_NS) -f deploy/helm/values-orbstack.yaml --wait --timeout 10m
+	$(KUBECTL) -n $(K8S_NS) get pods
+
+k8s-status: ## Pods, services and jobs in the atlas namespace
+	$(KUBECTL) -n $(K8S_NS) get pods,svc,jobs
+
+k8s-forward: ## Port-forward API :8000 and Temporal UI :8080 (Ctrl+C to stop)
+	@echo "API http://localhost:8000/ui/topology  ·  Temporal UI http://localhost:8080"
+	@$(KUBECTL) -n $(K8S_NS) port-forward svc/atlas-api 8000:80 & \
+	 $(KUBECTL) -n $(K8S_NS) port-forward svc/temporal-ui 8080:8080 & wait
+
+k8s-demo: ## Run the happy-path demo against the port-forwarded API
+	./scripts/demo.sh
+
+k8s-down: ## Uninstall the chart and the dev dependencies (keeps nothing)
+	-$(HELM) uninstall atlas -n $(K8S_NS)
+	-$(KUBECTL) delete -f deploy/k8s/dev-deps.yaml
