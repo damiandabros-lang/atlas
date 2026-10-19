@@ -98,7 +98,7 @@ services:
     restart: unless-stopped
 
   temporal-admin-tools:
-    image: temporalio/admin-tools:1.25
+    image: temporalio/admin-tools:1.32
     container_name: atlas-temporal-admin-tools
     profiles: ["tools"]
     depends_on:
