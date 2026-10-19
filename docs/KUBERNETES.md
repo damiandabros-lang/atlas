@@ -19,6 +19,8 @@ What the chart shows beyond compose:
 
 | Concern | Implementation |
 |---|---|
+| Hook ordering | ServiceAccount, ConfigMap and Secret are `pre-install,pre-upgrade` hooks (weight −10) so the migration Job (weight 0) can mount them; Helm runs hooks before regular resources. They survive upgrades (`before-hook-creation`) and are removed by `make k8s-down` |
+| Service links | `enableServiceLinks: false` on every pod: Kubernetes would otherwise inject `TEMPORAL_UI_PORT=tcp://…` from the `temporal-ui` Service, which the Temporal images parse as a port number and crash |
 | Schema migrations | Helm hook Job (`alembic upgrade head`, then `atlas-seed` when `migrations.seed`) runs before every install/upgrade |
 | Config vs secrets | `ConfigMap` for `ATLAS_*` settings, `Secret` (or `existingSecret` from ESO/Vault) for DB URL, API keys, device credentials |
 | Health | startup/readiness/liveness probes on `/api/v1/health`; worker probed on its metrics port |

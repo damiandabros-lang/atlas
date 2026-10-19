@@ -47,8 +47,9 @@ if kubectl config use-context orbstack >/dev/null 2>&1 && kubectl get nodes >/de
   log "helm release state: $state"
   if [ "$state" != "deployed" ] && [ "$state" != "none" ]; then
     run helm uninstall atlas -n atlas --wait --timeout 2m
-    kubectl -n atlas delete job -l app.kubernetes.io/instance=atlas --ignore-not-found 2>&1 | tee -a "$REPORT"
   fi
+  # A hook Job left from an interrupted install blocks the next one.
+  kubectl -n atlas delete job -l app.kubernetes.io/instance=atlas --ignore-not-found 2>&1 | tee -a "$REPORT"
 
   log "helm upgrade --install (background) + diagnostics while it runs"
   helm upgrade --install atlas deploy/helm/atlas -n atlas -f deploy/helm/values-orbstack.yaml --wait --timeout 6m >>"$REPORT" 2>&1 &
@@ -81,6 +82,7 @@ fi
 log "git: commit + push"
 git add -A
 git commit -q -m "docs: CI badge, screenshots; scripts/finalize.sh" 2>&1 | tee -a "$REPORT" || true
+run git pull --rebase --autostash
 run git push
 run git log --oneline -3
 

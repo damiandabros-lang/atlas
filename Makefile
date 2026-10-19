@@ -163,4 +163,5 @@ k8s-demo: ## Run the happy-path demo against the port-forwarded API
 
 k8s-down: ## Uninstall the chart and the dev dependencies (keeps nothing)
 	-$(HELM) uninstall atlas -n $(K8S_NS)
+	-$(KUBECTL) -n $(K8S_NS) delete sa,cm,secret,job -l app.kubernetes.io/instance=atlas --ignore-not-found
 	-$(KUBECTL) delete -f deploy/k8s/dev-deps.yaml

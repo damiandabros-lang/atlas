@@ -38,6 +38,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      enableServiceLinks: false
       serviceAccountName: {{ include "atlas.serviceAccountName" . }}
       automountServiceAccountToken: false
       # Graceful drain: Temporal worker stops polling, lets in-flight activities finish or
