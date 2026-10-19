@@ -1,6 +1,7 @@
 # ATLAS — Network Service Orchestration Platform
 
-[![CI](https://img.shields.io/badge/CI-github_actions-blue?logo=githubactions)](.github/workflows/ci.yml)
+[![CI](https://github.com/damiandabros-lang/atlas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/damiandabros-lang/atlas/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-174_passing-success?logo=pytest&logoColor=white)](tests)
 [![Python 3.12](https://img.shields.io/badge/python-3.12+-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![Temporal](https://img.shields.io/badge/orchestration-Temporal-black?logo=temporal)](https://temporal.io)
 [![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi)](https://fastapi.tiangolo.com)
@@ -22,6 +23,17 @@ injection; the adapter contract is designed for NETCONF/gNMI drivers for Cisco I
 > on a modern distributed-systems stack.
 
 ---
+
+
+<p align="center">
+  <img src="docs/img/topology-l3vpn-overlay.png" alt="Live topology with L3VPN overlay" width="900"><br>
+  <em>Live topology view (<code>/ui/topology</code>): PE/P/RR inventory, core links, and the selected L3VPN's VRF attachments and virtual full-mesh.</em>
+</p>
+<p align="center">
+  <img src="docs/img/temporal-ui-workflows.png" alt="Temporal UI" width="440">
+  <img src="docs/img/api-swagger.png" alt="OpenAPI docs" width="440"><br>
+  <em>Temporal UI with provisioning / reconciliation workflows · OpenAPI docs of the REST gateway.</em>
+</p>
 
 ## Architecture
 

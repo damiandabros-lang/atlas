@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ATLAS — Technical Brief</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 16mm 15mm; }
+  :root { --ink:#111827; --muted:#4b5563; --line:#d1d5db; --accent:#1d4ed8; --ok:#15803d; --bg:#f3f4f6; }
+  * { box-sizing:border-box }
+  body { font: 10.4pt/1.42 -apple-system, "Segoe UI", Inter, Helvetica, Arial, sans-serif; color:var(--ink); margin:0 }
+  h1 { font-size:22pt; margin:0 0 2pt; letter-spacing:-.3px }
+  h2 { font-size:13pt; margin:16pt 0 6pt; padding-bottom:3pt; border-bottom:1.5px solid var(--ink) }
+  h3 { font-size:11pt; margin:10pt 0 4pt }
+  p { margin:0 0 6pt } .sub { color:var(--muted); font-size:10pt }
+  .meta { display:flex; gap:18pt; color:var(--muted); font-size:9.3pt; margin:4pt 0 10pt }
+  .meta b { color:var(--ink) }
+  table { width:100%; border-collapse:collapse; font-size:9.4pt; margin:4pt 0 8pt }
+  th, td { border:1px solid var(--line); padding:4pt 6pt; vertical-align:top; text-align:left }
+  th { background:var(--bg); font-weight:600 }
+  td.ok { color:var(--ok); font-weight:600; white-space:nowrap }
+  code, pre { font-family: "SF Mono", Menlo, Consolas, monospace; font-size:8.6pt }
+  code { background:var(--bg); padding:0 3pt; border-radius:3px }
+  pre { background:#0b1220; color:#e5e7eb; padding:8pt 10pt; border-radius:6px; line-height:1.3; margin:4pt 0 8pt; white-space:pre }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10pt }
+  .box { border:1px solid var(--line); border-radius:6px; padding:7pt 9pt; background:#fff }
+  .box h3 { margin-top:0 }
+  ul { margin:2pt 0 6pt 14pt; padding:0 } li { margin:1.5pt 0 }
+  .kpi { display:flex; gap:8pt; margin:6pt 0 2pt }
+  .kpi div { flex:1; border:1px solid var(--line); border-radius:6px; padding:6pt 8pt; background:var(--bg) }
+  .kpi b { display:block; font-size:15pt; color:var(--accent) } .kpi span { font-size:8.8pt; color:var(--muted) }
+  img { max-width:100%; border:1px solid var(--line); border-radius:4px }
+  figcaption { font-size:8.6pt; color:var(--muted); margin:2pt 0 8pt }
+  .pb { page-break-before: always }
+  a { color:var(--accent); text-decoration:none }
+  .foot { font-size:8.5pt; color:var(--muted); border-top:1px solid var(--line); padding-top:4pt; margin-top:12pt }
+</style>
+</head>
+<body>
+
+<h1>ATLAS — Network Service Orchestration Platform</h1>
+<p class="sub">Technical brief prepared for the DriveNets “Senior Python Engineer — Network Orchestration” review</p>
+<div class="meta">
+  <span><b>Author</b> Damian Dąbroś · CCIE R&amp;S #40482</span>
+  <span><b>Repository</b> <a href="https://github.com/damiandabros-lang/atlas">github.com/damiandabros-lang/atlas</a> (public, MIT)</span>
+  <span><b>Date</b> 19 October 2026</span>
+</div>
+
+<p>ATLAS provisions, verifies, reconciles and decommissions <b>MPLS L3VPN services across a service-provider core</b>.
+An operator submits a request through a REST API; a durable <b>Temporal</b> workflow allocates resources, renders
+vendor-specific configuration, pushes it to each PE router, verifies BGP/VRF/interface state and connectivity,
+and commits the service — or, when a device fails part-way, runs a <b>Saga-style compensation</b> that restores every
+touched router and releases the resources. It was designed and built as a production-shaped system (API,
+database, workflow engine, adapters, observability, Kubernetes packaging, CI), not as a script.</p>
+
+<div class="kpi">
+  <div><b>13.6k</b><span>lines of Python (incl. 3.9k of tests)</span></div>
+  <div><b>174</b><span>tests: unit + end-to-end, 84&nbsp;% coverage</span></div>
+  <div><b>7 / 7</b><span>CI jobs green on <code>main</code></span></div>
+  <div><b>20</b><span>Temporal activities, 3 workflows</span></div>
+  <div><b>13</b><span>REST endpoints + live topology UI</span></div>
+</div>
+
+<h2>1. Why this is relevant to the role</h2>
+<table>
+<tr><th style="width:34%">Role requirement</th><th>What ATLAS demonstrates</th><th style="width:9%">Status</th></tr>
+<tr><td>Python backend engineering (async, typed, tested)</td><td>Python 3.12, FastAPI + Pydantic v2, SQLAlchemy 2 async, structlog; <code>ruff</code> + <code>mypy</code> clean; 174 tests incl. end-to-end through the real API and workflow engine</td><td class="ok">Done</td></tr>
+<tr><td>Complex workflows / distributed systems</td><td>Temporal as the authoritative execution engine: durable execution across worker restarts, per-activity retry policies with exponential backoff, heartbeats, cancellation (signal + native), workflow versioning (<code>workflow.patched</code>), determinism rules; Saga compensation in reverse order with an idempotent per-device operation ledger</td><td class="ok">Done</td></tr>
+<tr><td>BGP / MPLS service orchestration</td><td>L3VPN domain model (VRF, RD, RT import/export, PE–CE sub-interfaces, static / eBGP PE–CE), vendor templates for IOS XR and Junos, pre-deployment validation, post-deployment verification (VRF/RT/RD, interface, BGP session) and pairwise connectivity matrix</td><td class="ok">Done</td></tr>
+<tr><td>Kubernetes, hands-on</td><td>Helm chart: API + worker Deployments with startup/readiness/liveness probes, pre-install/upgrade <b>migration hook Job</b> (Alembic + seed), ConfigMap/Secret split with <code>existingSecret</code> for ESO/Vault, HPA, PDB, NetworkPolicy, ServiceMonitor, non-root / read-only-FS security context, graceful worker drain (120 s). In-cluster dev dependencies (PostgreSQL, Temporal) for a laptop cluster (OrbStack). <code>helm lint --strict</code> + template + kubeconform in CI</td><td class="ok">Done</td></tr>
+<tr><td>PostgreSQL / data integrity</td><td>10 tables, FKs, indexes; <b>concurrency-safe resource allocation</b> (RD/RT/VLAN/subnet) enforced by a UNIQUE constraint + SAVEPOINT retry rather than locks; optimistic locking (<code>version</code>); audit log; Alembic migrations with upgrade/downgrade round-trip in CI</td><td class="ok">Done</td></tr>
+<tr><td>Failure recovery / transactional consistency</td><td>Failure classification (transient / permanent / unknown) drives retry vs. compensate vs. inspect-device-state; <code>MANUAL_INTERVENTION_REQUIRED</code> when recovery cannot be proven safe; a real cancellation race (write completed while the activity was being cancelled) was caught by the e2e suite and fixed</td><td class="ok">Done</td></tr>
+<tr><td>Observability</td><td>Prometheus metrics (<code>atlas_workflow_*</code>, <code>atlas_device_operation_*</code>, drift), structured JSON logs with secret redaction and correlation IDs, OpenTelemetry tracing (FastAPI + Temporal interceptor), Grafana dashboard</td><td class="ok">Done</td></tr>
+<tr><td>Network automation interfaces</td><td>Adapter abstraction (<code>NetworkAdapter</code> protocol); stateful mock with failure injection; Cisco IOS XR and Juniper Junos NETCONF adapters (candidate/commit, rollback by commit id, config diff) — ready to point at containerlab / XRd</td><td class="ok">Done (NETCONF parsers simplified)</td></tr>
+</table>
+
+<h2>2. Architecture</h2>
+<div class="grid2">
+<div>
+<pre>  operator / NOC tooling
+          │  REST (202 Accepted, Idempotency-Key)
+          ▼
+ ┌─────────────────────┐      ┌─────────────────────┐
+ │  FastAPI gateway    │      │  Temporal server    │
+ │  auth · validation  │─────▶│  durable workflows  │
+ │  service controller │      │  retries · timers   │
+ └──────────┬──────────┘      └──────────┬──────────┘
+            │                            │ task queue
+            ▼                            ▼
+ ┌─────────────────────┐      ┌─────────────────────┐
+ │  PostgreSQL         │◀────▶│  Orchestration      │
+ │  inventory · desired│      │  worker: activities │
+ │  state · allocations│      │  saga · reconcile   │
+ │  ledger · audit     │      └──────────┬──────────┘
+ └─────────────────────┘                 │ NetworkAdapter
+                             ┌───────────┼───────────┐
+                             ▼           ▼           ▼
+                           PE1         PE2         PE3   (mock / IOS XR / Junos)
+                             └───── MPLS core ─────┘</pre>
+</div>
+<div class="box">
+<h3>Key design decisions (ADRs in repo)</h3>
+<ul>
+<li><b>Temporal owns execution state, PostgreSQL owns business state.</b> No workflow state in the DB, no business data in workflow history.</li>
+<li><b>Saga over distributed transactions.</b> Three routers are never one atomic commit; every device write is a ledger row with an idempotency key, so retries never double-apply and compensation knows exactly what to undo.</li>
+<li><b>Resource uniqueness is a data invariant</b> — enforced by the database, not by a lock or Redis.</li>
+<li><b>Reconciliation is DETECT_ONLY</b> by default; automatic remediation requires explicit authorisation.</li>
+<li><b>Adapters are the only place that talks to devices</b>; swapping mock → NETCONF is configuration.</li>
+</ul>
+</div>
+</div>
+
+<h3>Provisioning workflow and recovery</h3>
+<pre>REQUESTED → VALIDATING → ALLOCATING → (generate configs, pre-deployment validation)
+          → PROVISIONING: PE1 ✓ → PE2 ✓ → PE3 ✗ (ConfigurationRejected, permanent)
+          → ROLLING_BACK: rollback PE2 ✓ → rollback PE1 ✓ → release RD/RT/VLAN/subnets
+          → ROLLED_BACK   (audit: COMPENSATION_EXECUTED ×2, RESOURCES_RELEASED)
+Transient failure (TIMEOUT_ON_PE2)  → retried with backoff → … → VERIFYING → ACTIVE
+Partial apply (UNKNOWN)             → inspect device state → continue or compensate
+Compensation itself fails           → MANUAL_INTERVENTION_REQUIRED (nothing hidden)</pre>
+
+<h2 class="pb">3. Evidence</h2>
+<div class="grid2">
+<div>
+<h3>Test suite (runs in 30 s, no Docker needed)</h3>
+<ul>
+<li><b>Unit</b> (167): lifecycle state machine, optimistic locking, allocation conflicts and pool exhaustion, adapter failure modes, template rendering, workflow paths with stubbed activities (happy, fail-on-PE3, transient retry, partial apply, cancel before/during, compensation failure), API contract (auth, idempotency replay, 4xx mapping), reconciliation diffs, metrics/logging.</li>
+<li><b>End-to-end</b> (5): real REST API → real Temporal (time-skipping test server) → real activities → database → simulated routers. Asserts on device state, allocations and audit trail. <b>Found a real bug</b> during development: a device write completing while its activity was being cancelled was not recorded, so compensation skipped the router. Fixed (<code>CancelledAfterSettled</code>).</li>
+</ul>
+<h3>CI (GitHub Actions, all green)</h3>
+<ul>
+<li>ruff lint + format, mypy (clean, 58 files)</li>
+<li>pytest against PostgreSQL 16 + Temporal server services, coverage</li>
+<li>Alembic upgrade → downgrade → upgrade; autogenerate drift check</li>
+<li>multi-arch Docker build → <code>ghcr.io/damiandabros-lang/atlas</code></li>
+<li>Helm lint --strict, template, kubeconform; compose config</li>
+</ul>
+</div>
+<div>
+<figure>
+<img src="../img/topology-l3vpn-overlay.png" alt="topology">
+<figcaption>Live topology (<code>/ui/topology</code>): inventory and core links from the database; selecting a service overlays its VRF attachments and virtual full-mesh. Refreshes every 5 s — provisioning, rollback and decommission are visible as they happen.</figcaption>
+</figure>
+<figure>
+<img src="../img/temporal-ui-workflows.png" alt="temporal">
+<figcaption>Temporal UI: provisioning and reconciliation workflow executions with full event history (activities, retries, timers).</figcaption>
+</figure>
+</div>
+</div>
+
+<h3>Operational surface</h3>
+<table>
+<tr><th>Capability</th><th>How</th></tr>
+<tr><td>Request a service</td><td><code>POST /api/v1/services/l3vpn</code> → 202 + workflow id; <code>Idempotency-Key</code> replay; <code>X-Correlation-ID</code> through logs, audit and Temporal</td></tr>
+<tr><td>Observe</td><td><code>GET …/status</code> (lifecycle + live workflow stage), <code>GET …/history</code> (audit trail), Temporal UI, Grafana, <code>/ui/topology</code></td></tr>
+<tr><td>Operate</td><td><code>POST …/cancel</code> (cooperative signal, then native cancel → compensation), <code>DELETE</code> (decommission workflow, reverse order), <code>POST …/reconcile</code> (desired vs observed per device, e.g. <code>route_target 65000:100 → 65000:200 = DRIFT_DETECTED</code>)</td></tr>
+<tr><td>Deploy</td><td><code>docker compose up</code> (Postgres, Temporal + UI, API, worker, Prometheus, Grafana, optional OTel + Jaeger) · <code>helm install</code> with <code>values-orbstack.yaml</code> or an external PostgreSQL / Temporal Cloud</td></tr>
+<tr><td>Fail safely</td><td><code>ATLAS_MOCK_FAILURE_MODE=FAIL_ON_PE3|TIMEOUT_ON_PE2|PARTIAL_CONFIGURATION|BGP_SESSION_DOWN|DEVICE_UNREACHABLE</code> — each with a scripted demo and an e2e test</td></tr>
+</table>
+
+<h2>4. What I would do next (and can discuss in depth)</h2>
+<ul>
+<li>Point the IOS XR adapter at containerlab / XRd and replace the mock in the e2e suite with real NETCONF (candidate + commit-confirmed, rollback by commit id).</li>
+<li>Second service type (EVPN / L2VPN) to prove the domain model and workflow generalise; Temporal child workflows per device for parallel provisioning with per-site failure domains.</li>
+<li>AUTO_REMEDIATE behind an explicit approval signal; OIDC instead of API keys; Temporal Cloud + managed PostgreSQL values for production.</li>
+<li>Telemetry-driven verification (gNMI subscriptions) instead of polling, feeding the same reconciliation engine.</li>
+</ul>
+
+<p class="foot">Built with Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic, PostgreSQL 16, Temporal Python SDK 1.34, Jinja2, structlog, Prometheus, OpenTelemetry, Docker, Helm, GitHub Actions.
+Developed with AI-assisted tooling under my architecture and review; every design decision, failure-handling rule and test scenario in this document is mine to defend in a technical interview.
+Repository: <a href="https://github.com/damiandabros-lang/atlas">github.com/damiandabros-lang/atlas</a> · docs/ARCHITECTURE.md · docs/adr/ · docs/RUNBOOK.md</p>
+</body>
+</html>

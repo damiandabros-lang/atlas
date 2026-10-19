@@ -12,4 +12,6 @@ build/
 .env
 *.db
 .DS_Store
+_finalize-report.txt
+
 coverage.xml

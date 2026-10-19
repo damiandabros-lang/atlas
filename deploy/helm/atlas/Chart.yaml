@@ -17,6 +17,6 @@ keywords:
   - fastapi
 maintainers:
   - name: Damian Dąbroś
-    url: https://github.com/ddabros
+    url: https://github.com/damiandabros-lang
 annotations:
   artifacthub.io/license: MIT
