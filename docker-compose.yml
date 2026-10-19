@@ -195,7 +195,7 @@ services:
     restart: unless-stopped
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.109.0
+    image: otel/opentelemetry-collector-contrib:0.162.0-386
     container_name: atlas-otel-collector
     profiles: ["tracing"]
     command: ["--config=/etc/otelcol/collector.yaml"]
