@@ -48,19 +48,23 @@ wait_for_api() {
   "${SCRIPT_DIR}/wait-for.sh" "${API_URL}/api/v1/health" "${1:-180}"
 }
 
-l3vpn_request() {  # l3vpn_request <service_name> <vrf_name>
-  local name="$1" vrf="$2"
+# Each demo run must not collide with services left over from earlier runs (the inventory
+# persists in PostgreSQL): the VLAN is derived from the clock (unique per PE interface) and the
+# route target is left to the allocator pool instead of being pinned.
+demo_vlan() { echo $(( 100 + $(date +%s) % 3800 )); }
+
+l3vpn_request() {  # l3vpn_request <service_name> <vrf_name> [vlan]
+  local name="$1" vrf="$2" vlan="${3:-$(demo_vlan)}"
   cat <<JSON
 {
   "customer_id": "${CUSTOMER_ID}",
   "service_name": "${name}",
   "vrf_name": "${vrf}",
-  "route_target": "65000:100",
-  "description": "ACME Corporation production L3VPN (demo)",
+  "description": "ACME Corporation production L3VPN (demo, vlan ${vlan})",
   "endpoints": [
-    {"device": "PE1", "interface": "GigabitEthernet0/0/0/1", "vlan": 100},
-    {"device": "PE2", "interface": "GigabitEthernet0/0/0/2", "vlan": 100},
-    {"device": "PE3", "interface": "GigabitEthernet0/0/0/3", "vlan": 100}
+    {"device": "PE1", "interface": "GigabitEthernet0/0/0/1", "vlan": ${vlan}},
+    {"device": "PE2", "interface": "GigabitEthernet0/0/0/2", "vlan": ${vlan}},
+    {"device": "PE3", "interface": "GigabitEthernet0/0/0/3", "vlan": ${vlan}}
   ]
 }
 JSON
