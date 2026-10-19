@@ -8,7 +8,7 @@
 name: atlas
 
 x-atlas-image: &atlas-image
-  image: ${ATLAS_IMAGE:-ghcr.io/ddabros/atlas:dev}
+  image: ${ATLAS_IMAGE:-ghcr.io/damiandabros-lang/atlas:dev}
   build:
     context: .
     dockerfile: deploy/docker/Dockerfile

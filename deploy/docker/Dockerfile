@@ -3,7 +3,7 @@
 # ATLAS — multi-stage image. One image serves both the API (default CMD) and the
 # Temporal worker (`command: atlas-worker`).
 #
-#   docker build -f deploy/docker/Dockerfile -t ghcr.io/ddabros/atlas:dev .
+#   docker build -f deploy/docker/Dockerfile -t ghcr.io/damiandabros-lang/atlas:dev .
 #
 # ---------------------------------------------------------------------------
 # Stage 1 — builder: build a self-contained virtualenv from pyproject.toml
@@ -40,7 +40,7 @@ FROM python:3.12-slim AS runtime
 
 LABEL org.opencontainers.image.title="ATLAS" \
       org.opencontainers.image.description="Enterprise Network Service Orchestration Platform (MPLS L3VPN on Temporal)" \
-      org.opencontainers.image.source="https://github.com/ddabros/atlas" \
+      org.opencontainers.image.source="https://github.com/damiandabros-lang/atlas" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.authors="Damian Dąbroś"
 

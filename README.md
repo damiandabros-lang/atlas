@@ -80,7 +80,7 @@ other's job. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 Prerequisites: Docker with Compose v2, `curl`, optionally `jq`.
 
 ```bash
-git clone https://github.com/ddabros/atlas && cd atlas
+git clone https://github.com/damiandabros-lang/atlas && cd atlas
 cp .env.example .env
 make up            # builds the image, starts postgres, temporal, api, worker, prometheus, grafana
 make demo          # provisions ACME-L3VPN across PE1..PE3 and prints the audit trail

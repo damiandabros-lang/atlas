@@ -5,9 +5,9 @@ type: application
 version: 0.1.0
 appVersion: "0.1.0"
 kubeVersion: ">=1.27.0-0"
-home: https://github.com/ddabros/atlas
+home: https://github.com/damiandabros-lang/atlas
 sources:
-  - https://github.com/ddabros/atlas
+  - https://github.com/damiandabros-lang/atlas
 keywords:
   - network-automation
   - orchestration

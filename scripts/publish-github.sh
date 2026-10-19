@@ -9,10 +9,10 @@ command -v gh >/dev/null || { echo "GitHub CLI (gh) not installed: brew install 
 gh auth status >/dev/null 2>&1 || { echo "run: gh auth login"; exit 1; }
 
 if [ "$LOGIN" != "ddabros" ] || [ "$REPO" != "atlas" ]; then
-  grep -rl "ghcr.io/ddabros/atlas" --exclude-dir=.git --exclude-dir=.venv . \
-    | xargs sed -i '' "s#ghcr.io/ddabros/atlas#ghcr.io/${LOGIN}/${REPO}#g"
-  grep -rl "github.com/ddabros/atlas" --exclude-dir=.git --exclude-dir=.venv . \
-    | xargs sed -i '' "s#github.com/ddabros/atlas#github.com/${LOGIN}/${REPO}#g" || true
+  grep -rl "ghcr.io/damiandabros-lang/atlas" --exclude-dir=.git --exclude-dir=.venv . \
+    | xargs sed -i '' "s#ghcr.io/damiandabros-lang/atlas#ghcr.io/${LOGIN}/${REPO}#g"
+  grep -rl "github.com/damiandabros-lang/atlas" --exclude-dir=.git --exclude-dir=.venv . \
+    | xargs sed -i '' "s#github.com/damiandabros-lang/atlas#github.com/${LOGIN}/${REPO}#g" || true
   git add -A && git commit -q -m "chore: point image/repo references at ${LOGIN}/${REPO}" || true
 fi
 
