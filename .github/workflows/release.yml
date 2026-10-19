@@ -70,7 +70,7 @@ jobs:
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
           helm push dist/atlas-*.tgz "oci://ghcr.io/${{ github.repository_owner }}/charts"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: helm-chart
           path: dist/*.tgz
