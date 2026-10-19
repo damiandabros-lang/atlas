@@ -31,7 +31,7 @@ x-atlas-env: &atlas-env
 services:
   # ---------------------------------------------------------------- data ----
   postgres:
-    image: postgres:16
+    image: postgres:18
     container_name: atlas-postgres
     environment:
       POSTGRES_USER: atlas
