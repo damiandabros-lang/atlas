@@ -53,7 +53,7 @@ services:
   # auto-setup creates the `temporal` and `temporal_visibility` databases in the
   # same PostgreSQL instance (separate from the ATLAS business database).
   temporal:
-    image: temporalio/auto-setup:1.25
+    image: temporalio/auto-setup:1.29
     container_name: atlas-temporal
     depends_on:
       postgres:
