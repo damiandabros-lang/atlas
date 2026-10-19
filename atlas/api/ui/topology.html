@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATLAS — Topology</title>
+<style>
+  :root { --bg:#0e1116; --panel:#161b22; --line:#30363d; --fg:#e6edf3; --muted:#8b949e;
+          --pe:#58a6ff; --p:#d2a8ff; --rr:#ffa657; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --vpn:#f778ba; }
+  * { box-sizing:border-box } body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 -apple-system,Segoe UI,Inter,sans-serif; }
+  header { display:flex; gap:16px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--panel); }
+  header h1 { font-size:16px; margin:0; letter-spacing:.3px } header h1 span { color:var(--muted); font-weight:400 }
+  header .sp { flex:1 } input,select,button { background:#0d1117; color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:5px 8px; font:inherit }
+  button { cursor:pointer } button:hover { border-color:var(--pe) }
+  main { display:grid; grid-template-columns: 1fr 340px; height: calc(100vh - 52px) }
+  svg { width:100%; height:100%; display:block }
+  aside { border-left:1px solid var(--line); background:var(--panel); overflow:auto; padding:12px 14px }
+  aside h2 { font-size:12px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:14px 0 6px }
+  .svc { border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin-bottom:8px; cursor:pointer }
+  .svc:hover, .svc.sel { border-color:var(--vpn); background:#1c1420 }
+  .svc .n { font-weight:600 } .svc .m { color:var(--muted); font-size:12px }
+  .pill { display:inline-block; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:600; border:1px solid currentColor }
+  .ACTIVE{color:var(--ok)} .PROVISIONING,.VERIFYING,.DECOMMISSIONING,.ROLLING_BACK{color:var(--warn)} .FAILED,.MANUAL_INTERVENTION_REQUIRED{color:var(--bad)}
+  table { width:100%; border-collapse:collapse; font-size:12px } td { padding:3px 0; vertical-align:top } td:first-child { color:var(--muted); width:38% }
+  .node { cursor:pointer } .node text { fill:var(--fg); font-weight:600; font-size:13px; pointer-events:none }
+  .node .sub { fill:var(--muted); font-weight:400; font-size:11px }
+  .link { stroke:#3d444d; stroke-width:2 } .link.rr { stroke-dasharray:4 4 } .link.DOWN { stroke:var(--bad) }
+  .link-label { fill:var(--muted); font-size:10px }
+  .vpn { fill:none; stroke:var(--vpn); stroke-width:3; stroke-dasharray:8 6; opacity:.9; animation: dash 1.2s linear infinite }
+  @keyframes dash { to { stroke-dashoffset:-28 } }
+  .badge { fill:#1c1420; stroke:var(--vpn) } .badge-text { fill:var(--vpn); font-size:10px; font-weight:600 }
+  .legend { position:absolute; left:16px; bottom:12px; color:var(--muted); font-size:12px; display:flex; gap:14px }
+  .legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:-1px }
+  #err { color:var(--bad); font-size:12px }
+</style>
+</head>
+<body>
+<header>
+  <h1>ATLAS <span>· network topology</span></h1>
+  <label>API key <input id="key" size="18" placeholder="X-API-Key"></label>
+  <label><input type="checkbox" id="all"> show terminal services</label>
+  <button id="refresh">Refresh</button>
+  <span id="err"></span>
+  <div class="sp"></div>
+  <a href="/docs" style="color:var(--muted)">API docs</a>
+</header>
+<main>
+  <div style="position:relative">
+    <svg id="g" viewBox="0 0 1200 640" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="legend">
+      <span><i style="background:var(--pe)"></i>PE</span><span><i style="background:var(--p)"></i>P</span>
+      <span><i style="background:var(--rr)"></i>RR</span><span><i style="background:var(--vpn)"></i>L3VPN overlay</span>
+      <span><i style="background:var(--bad)"></i>down / failed</span>
+    </div>
+  </div>
+  <aside>
+    <h2>Services</h2><div id="services"></div>
+    <h2>Selection</h2><div id="detail" class="m" style="color:var(--muted)">Click a device or a service.</div>
+  </aside>
+</main>
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const svg = $('#g'), NS = 'http://www.w3.org/2000/svg';
+  const keyInput = $('#key');
+  try { keyInput.value = localStorage.getItem('atlas.apikey') || 'dev-operator-key'; } catch (e) { keyInput.value = 'dev-operator-key'; }
+  keyInput.addEventListener('change', () => { try { localStorage.setItem('atlas.apikey', keyInput.value); } catch (e) {} load(); });
+  $('#all').addEventListener('change', load); $('#refresh').addEventListener('click', load);
+
+  let data = null, selectedService = null, selectedNode = null, pos = {};
+  const ROLE_COLOR = { PE: 'var(--pe)', P: 'var(--p)', RR: 'var(--rr)' };
+  const el = (tag, attrs = {}, text) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (text != null) e.textContent = text; return e; };
+
+  async function load() {
+    $('#err').textContent = '';
+    try {
+      const r = await fetch('/api/v1/topology' + ($('#all').checked ? '?include_all=true' : ''), { headers: { 'X-API-Key': keyInput.value } });
+      if (!r.ok) throw new Error(r.status + ' ' + (await r.text()).slice(0, 120));
+      data = await r.json(); render();
+    } catch (e) { $('#err').textContent = 'load failed: ' + e.message; }
+  }
+
+  function layout() {
+    const rows = { RR: 90, P: 260, PE: 470 };
+    const groups = { RR: [], P: [], PE: [] };
+    for (const n of data.nodes) (groups[n.role] || (groups[n.role] = [])).push(n);
+    pos = {};
+    for (const [role, nodes] of Object.entries(groups)) {
+      const y = rows[role] || 560, step = 1200 / (nodes.length + 1);
+      nodes.sort((a, b) => a.hostname.localeCompare(b.hostname)).forEach((n, i) => { pos[n.hostname] = { x: step * (i + 1), y }; });
+    }
+  }
+
+  function render() {
+    layout(); svg.innerHTML = '';
+    const gLinks = el('g'), gVpn = el('g'), gNodes = el('g'); svg.append(gLinks, gVpn, gNodes);
+    for (const l of data.links) {
+      const a = pos[l.a], b = pos[l.b]; if (!a || !b) continue;
+      const line = el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: `link ${l.link_type} ${l.operational_status}` });
+      line.append(el('title', {}, `${l.a} ${l.a_interface} ↔ ${l.b} ${l.b_interface}\n${l.bandwidth_gbps ?? '?'} Gbps · metric ${l.igp_metric ?? '-'} · ${l.operational_status}`));
+      gLinks.append(line);
+      gLinks.append(el('text', { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 4, class: 'link-label', 'text-anchor': 'middle' }, l.bandwidth_gbps ? `${l.bandwidth_gbps}G` : ''));
+    }
+    const svc = data.services.find(s => s.id === selectedService);
+    if (svc) {
+      const pts = svc.attachments.map(a => pos[a.device]).filter(Boolean);
+      for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+        const a = pts[i], b = pts[j], mx = (a.x + b.x) / 2, my = Math.min(a.y, b.y) + 70 + Math.abs(a.x - b.x) * 0.12;
+        gVpn.append(el('path', { d: `M${a.x},${a.y} Q${mx},${my} ${b.x},${b.y}`, class: 'vpn' }));
+      }
+      for (const att of svc.attachments) {
+        const p = pos[att.device]; if (!p) continue;
+        const g = el('g'); const label = `${att.vrf_name} · ${att.interface.replace(/GigabitEthernet|HundredGigE|TenGigE/, 'Gi')}.${att.vlan_id ?? ''}`;
+        const w = label.length * 6.2 + 14;
+        g.append(el('rect', { x: p.x - w / 2, y: p.y + 44, width: w, height: 18, rx: 9, class: 'badge' }));
+        g.append(el('text', { x: p.x, y: p.y + 57, 'text-anchor': 'middle', class: 'badge-text' }, label));
+        gVpn.append(g);
+      }
+    }
+    for (const n of data.nodes) {
+      const p = pos[n.hostname]; if (!p) continue;
+      const g = el('g', { class: 'node', transform: `translate(${p.x},${p.y})` });
+      const down = n.operational_status !== 'UP';
+      const inSvc = svc && svc.attachments.some(a => a.device === n.hostname);
+      g.append(el('circle', { r: 26, fill: '#0d1117', stroke: down ? 'var(--bad)' : (inSvc ? 'var(--vpn)' : ROLE_COLOR[n.role] || '#999'), 'stroke-width': selectedNode === n.hostname ? 5 : 3 }));
+      g.append(el('text', { 'text-anchor': 'middle', dy: 5 }, n.hostname));
+      g.append(el('text', { 'text-anchor': 'middle', dy: 40, class: 'sub' }, n.loopback_ip || n.role));
+      if (n.services.length) {
+        g.append(el('circle', { cx: 20, cy: -20, r: 9, fill: 'var(--vpn)' }));
+        g.append(el('text', { x: 20, y: -16, 'text-anchor': 'middle', style: 'font-size:11px;fill:#0d1117' }, n.services.length));
+      }
+      g.addEventListener('click', () => { selectedNode = n.hostname; showNode(n); render(); });
+      gNodes.append(g);
+    }
+    renderServices();
+  }
+
+  function renderServices() {
+    const box = $('#services'); box.innerHTML = '';
+    if (!data.services.length) { box.innerHTML = '<div style="color:var(--muted)">No services yet — POST /api/v1/services/l3vpn</div>'; return; }
+    for (const s of data.services) {
+      const d = document.createElement('div'); d.className = 'svc' + (s.id === selectedService ? ' sel' : '');
+      d.innerHTML = `<div class="n">${s.service_name} <span class="pill ${s.lifecycle_status}">${s.lifecycle_status}</span></div>
+                     <div class="m">${s.service_type} · VRF ${s.vrf_name ?? '-'} · RT ${s.route_target ?? '-'} · ${s.attachments.map(a => a.device).join(', ')}</div>`;
+      d.addEventListener('click', () => { selectedService = selectedService === s.id ? null : s.id; selectedNode = null; showService(s); render(); });
+      box.append(d);
+    }
+  }
+  const row = (k, v) => `<tr><td>${k}</td><td>${v ?? '-'}</td></tr>`;
+  function showService(s) {
+    $('#detail').innerHTML = `<table>${row('service', s.service_name)}${row('status', `<span class="pill ${s.lifecycle_status}">${s.lifecycle_status}</span>`)}${row('VRF', s.vrf_name)}${row('RT', s.route_target)}${row('id', `<code>${s.id}</code>`)}</table>
+      <h2>Attachments</h2>` + s.attachments.map(a => `<table>${row(a.device, `${a.interface} vlan ${a.vlan_id ?? '-'}`)}${row('RD', a.route_distinguisher)}${row('PE / CE', `${a.pe_ip_address ?? '-'} / ${a.ce_ip_address ?? '-'}`)}${row('status', a.status)}</table>`).join('<hr style="border:0;border-top:1px solid var(--line)">');
+  }
+  function showNode(n) {
+    const links = data.links.filter(l => l.a === n.hostname || l.b === n.hostname);
+    $('#detail').innerHTML = `<table>${row('device', n.hostname)}${row('role', n.role)}${row('platform', `${n.vendor} / ${n.platform}`)}${row('loopback', n.loopback_ip)}${row('site', n.site)}${row('status', n.operational_status)}${row('services', n.services.join(', ') || '-')}</table>
+      <h2>Links</h2><table>${links.map(l => row(l.a === n.hostname ? l.a_interface : l.b_interface, `→ ${l.a === n.hostname ? l.b : l.a} (${l.bandwidth_gbps ?? '?'}G, metric ${l.igp_metric ?? '-'})`)).join('')}</table>`;
+  }
+  load(); setInterval(load, 5000);
+})();
+</script>
+</body>
+</html>

@@ -12,14 +12,16 @@ import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from importlib import resources as _resources
 
 from fastapi import FastAPI, Request, Response
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 import atlas
 from atlas.api.deps import CORRELATION_HEADER, get_settings_dep
 from atlas.api.errors import install_exception_handlers
-from atlas.api.routers import devices, health, services
+from atlas.api.routers import devices, health, services, topology
 from atlas.api.routers.health import metrics_app
 from atlas.core.config import Settings, get_settings
 from atlas.services.temporal_client import reset_temporal_client
@@ -109,6 +111,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router, prefix=API_PREFIX)
     app.include_router(services.router, prefix=API_PREFIX)
     app.include_router(devices.router, prefix=API_PREFIX)
+    app.include_router(topology.router, prefix=API_PREFIX)
+
+    _topology_html = _resources.files("atlas.api").joinpath("ui/topology.html").read_text(encoding="utf-8")
+
+    @app.get("/ui/topology", include_in_schema=False, response_class=HTMLResponse)
+    async def topology_ui() -> HTMLResponse:
+        """Bundled single-file topology viewer (reads /api/v1/topology with the operator's API key)."""
+        return HTMLResponse(_topology_html)
+
+    @app.get("/", include_in_schema=False)
+    async def root() -> RedirectResponse:
+        return RedirectResponse("/ui/topology")
+
     if settings.metrics_enabled:
         app.add_route(f"{API_PREFIX}/metrics", metrics_app(), methods=["GET"], include_in_schema=False)
 

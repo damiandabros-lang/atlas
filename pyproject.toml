@@ -48,7 +48,7 @@ build-backend = "setuptools.build_meta"
 include = ["atlas*"]
 
 [tool.setuptools.package-data]
-atlas = ["adapters/templates/*.j2", "py.typed"]
+atlas = ["adapters/templates/*.j2", "api/ui/*.html", "py.typed"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -164,3 +164,11 @@ Response `202`:
 | `409` | `resource_conflict` | VRF name / interface already in use by another service |
 | `422` | `validation_error` | schema violation (details in `detail`) |
 | `503` | `dependency_unavailable` | Temporal or database unreachable |
+
+
+## Topology
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/v1/topology` | Nodes (devices with role/status/site/services), links (`network_links` with bandwidth, IGP metric, status) and service overlays (attachments per PE). `?include_all=true` also returns terminal (decommissioned/rolled-back) services. |
+| `GET` | `/ui/topology` | Bundled topology viewer (no auth; it calls the API with the key you enter). `/` redirects here. |

@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from atlas.core.enums import DeviceOperationalStatus, DeviceRole, Vendor
-from atlas.db.models import Customer, Site
+from atlas.db.models import Customer, NetworkLink, Site
 from atlas.db.repositories import CustomerRepository, DeviceRepository
 from atlas.db.session import transaction
 
@@ -137,12 +137,134 @@ async def _upsert_devices(session: AsyncSession, sites: dict[str, Site]) -> int:
     return len(DEVICES)
 
 
+# Dual-homed PEs into a two-node core, RR hanging off both P routers.
+LINKS: list[dict[str, Any]] = [
+    {
+        "a": "PE1",
+        "a_if": "HundredGigE0/0/0/0",
+        "b": "P1",
+        "b_if": "HundredGigE0/0/0/1",
+        "type": "core",
+        "bw": 100,
+        "metric": 10,
+    },
+    {
+        "a": "PE1",
+        "a_if": "HundredGigE0/0/0/1",
+        "b": "P2",
+        "b_if": "HundredGigE0/0/0/1",
+        "type": "core",
+        "bw": 100,
+        "metric": 10,
+    },
+    {
+        "a": "PE2",
+        "a_if": "HundredGigE0/0/0/0",
+        "b": "P1",
+        "b_if": "HundredGigE0/0/0/2",
+        "type": "core",
+        "bw": 100,
+        "metric": 10,
+    },
+    {
+        "a": "PE2",
+        "a_if": "HundredGigE0/0/0/1",
+        "b": "P2",
+        "b_if": "HundredGigE0/0/0/2",
+        "type": "core",
+        "bw": 100,
+        "metric": 10,
+    },
+    {
+        "a": "PE3",
+        "a_if": "HundredGigE0/0/0/0",
+        "b": "P1",
+        "b_if": "HundredGigE0/0/0/3",
+        "type": "core",
+        "bw": 100,
+        "metric": 10,
+    },
+    {
+        "a": "PE3",
+        "a_if": "HundredGigE0/0/0/1",
+        "b": "P2",
+        "b_if": "HundredGigE0/0/0/3",
+        "type": "core",
+        "bw": 100,
+        "metric": 10,
+    },
+    {
+        "a": "P1",
+        "a_if": "HundredGigE0/0/0/0",
+        "b": "P2",
+        "b_if": "HundredGigE0/0/0/0",
+        "type": "core",
+        "bw": 400,
+        "metric": 5,
+    },
+    {
+        "a": "RR1",
+        "a_if": "TenGigE0/0/0/0",
+        "b": "P1",
+        "b_if": "TenGigE0/0/0/10",
+        "type": "rr",
+        "bw": 10,
+        "metric": 100,
+    },
+    {
+        "a": "RR1",
+        "a_if": "TenGigE0/0/0/1",
+        "b": "P2",
+        "b_if": "TenGigE0/0/0/10",
+        "type": "rr",
+        "bw": 10,
+        "metric": 100,
+    },
+]
+
+
+async def _upsert_links(session: AsyncSession) -> int:
+    repo = DeviceRepository(session)
+    by_host = await repo.get_many_by_hostnames([h for spec in LINKS for h in (spec["a"], spec["b"])])
+    for spec in LINKS:
+        a, b = by_host[spec["a"].upper()], by_host[spec["b"].upper()]
+        existing = (
+            await session.execute(
+                select(NetworkLink).where(
+                    NetworkLink.a_device_id == a.id, NetworkLink.a_interface == spec["a_if"]
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is None:
+            session.add(
+                NetworkLink(
+                    a_device_id=a.id,
+                    a_interface=spec["a_if"],
+                    b_device_id=b.id,
+                    b_interface=spec["b_if"],
+                    link_type=spec["type"],
+                    bandwidth_gbps=spec["bw"],
+                    igp_metric=spec["metric"],
+                )
+            )
+        else:
+            existing.b_device_id, existing.b_interface = b.id, spec["b_if"]
+            existing.link_type, existing.bandwidth_gbps, existing.igp_metric = (
+                spec["type"],
+                spec["bw"],
+                spec["metric"],
+            )
+    await session.flush()
+    return len(LINKS)
+
+
 async def seed(session: AsyncSession) -> dict[str, int]:
     """Upsert the reference inventory. Never commits — the caller owns the transaction."""
     customers = await _upsert_customers(session)
     sites = await _upsert_sites(session)
     devices = await _upsert_devices(session, sites)
-    return {"customers": len(customers), "sites": len(sites), "devices": devices}
+    links = await _upsert_links(session)
+    return {"customers": len(customers), "sites": len(sites), "devices": devices, "links": links}
 
 
 async def _main() -> dict[str, int]:
@@ -154,7 +276,7 @@ def run() -> None:
     """Console entry point (``atlas-seed``)."""
     counts = asyncio.run(_main())
     sys.stdout.write(
-        f"seeded {counts['customers']} customers, {counts['sites']} sites, {counts['devices']} devices\n"
+        f"seeded {counts['customers']} customers, {counts['sites']} sites, {counts['devices']} devices, {counts['links']} links\n"
     )
 
 

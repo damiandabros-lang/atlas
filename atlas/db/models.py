@@ -120,6 +120,35 @@ class NetworkDevice(Base, TimestampMixin):
     endpoints: Mapped[list[ServiceEndpoint]] = relationship(back_populates="device")
 
 
+class NetworkLink(Base, TimestampMixin):
+    """Physical/logical adjacency between two devices (core topology for the topology view)."""
+
+    __tablename__ = "network_links"
+    __table_args__ = (
+        UniqueConstraint("a_device_id", "a_interface", name="uq_link_a_interface"),
+        UniqueConstraint("b_device_id", "b_interface", name="uq_link_b_interface"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=_uuid)
+    a_device_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("network_devices.id", ondelete="CASCADE"), index=True
+    )
+    a_interface: Mapped[str] = mapped_column(String(128))
+    b_device_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("network_devices.id", ondelete="CASCADE"), index=True
+    )
+    b_interface: Mapped[str] = mapped_column(String(128))
+    link_type: Mapped[str] = mapped_column(String(16), default="core")  # core | edge | rr
+    bandwidth_gbps: Mapped[int | None] = mapped_column(Integer)
+    igp_metric: Mapped[int | None] = mapped_column(Integer)
+    operational_status: Mapped[DeviceOperationalStatus] = mapped_column(
+        String(16), default=DeviceOperationalStatus.UP
+    )
+
+    a_device: Mapped[NetworkDevice] = relationship(foreign_keys=[a_device_id])
+    b_device: Mapped[NetworkDevice] = relationship(foreign_keys=[b_device_id])
+
+
 class NetworkService(Base, TimestampMixin):
     __tablename__ = "network_services"
     __table_args__ = (

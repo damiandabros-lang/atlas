@@ -31,7 +31,7 @@ async def _counts(session) -> tuple[int, int, int]:
 async def test_seed_creates_reference_inventory(db):
     async with transaction() as session:
         counts = await seed(session)
-        assert counts == {"customers": 2, "sites": 4, "devices": 6}
+        assert counts == {"customers": 2, "sites": 4, "devices": 6, "links": 9}
     async with transaction() as session:
         acme = await CustomerRepository(session).get(ACME_CUSTOMER_ID)
         assert acme is not None and acme.name == "ACME Corporation"

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from temporalio import activity
 
-from atlas.activities._support import get_logger, map_domain_error
+from atlas.activities._support import get_logger, map_domain_error, record_workflow_result
 from atlas.activities.models import AuditInput, StageInput, WorkflowFinishInput, WorkflowStartInput
 from atlas.core.enums import AuditEventType, WorkflowStatus
 from atlas.db.repositories import AuditRepository, ServiceRepository, WorkflowRepository
@@ -106,6 +106,13 @@ async def record_workflow_finish(req: WorkflowFinishInput) -> None:
             )
     except Exception as exc:
         raise map_domain_error(exc) from exc
+    duration = float((req.result or {}).get("duration_seconds") or 0.0)
+    record_workflow_result(
+        workflow_type=str(execution.workflow_type),
+        status=str(req.status),
+        duration_s=duration,
+        failure_stage=(req.result or {}).get("final_status") if req.error else None,
+    )
     log.info("workflow_finished", status=str(req.status), error=req.error)
 
 

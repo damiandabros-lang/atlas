@@ -212,6 +212,17 @@ docs/             ARCHITECTURE, API, RUNBOOK, INTERFACES, adr/
 tests/            unit/ (per-layer, no external services) and integration/ (end-to-end: API → Temporal → activities → mock PEs)
 ```
 
+## Topology view
+
+`http://localhost:8000/ui/topology` (also the API root `/`) renders the live network graph from
+`GET /api/v1/topology`: PE / P / RR routers with their core links, bandwidth and IGP metrics, and
+an **L3VPN overlay** per service — click a service to highlight its PEs, VRF/sub-interface badges
+and the virtual full-mesh between attachment points. Devices and links come from the inventory
+(`network_devices`, `network_links`), services from `network_services`/`service_endpoints`, so the
+view reflects provisioning, rollback and decommission in real time (5 s refresh). The page is a
+single self-contained HTML file with no external dependencies; it asks for the operator API key
+once and keeps it in the browser.
+
 ## Running tests
 
 ```bash

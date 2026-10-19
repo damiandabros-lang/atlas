@@ -19,6 +19,7 @@ from temporalio.worker import Worker
 from atlas.activities import ALL_ACTIVITIES
 from atlas.core.config import Settings, get_settings
 from atlas.observability.logging import configure_logging, get_logger
+from atlas.observability.metrics import get_registry
 from atlas.observability.tracing import configure_tracing, temporal_interceptors
 from atlas.workflows import ALL_WORKFLOWS
 
@@ -45,7 +46,7 @@ async def main(settings: Settings | None = None, *, metrics_port: int | None = W
 
     if settings.metrics_enabled and metrics_port:
         try:
-            start_http_server(metrics_port)
+            start_http_server(metrics_port, registry=get_registry())
             log.info("metrics_server_started", port=metrics_port)
         except OSError as exc:  # port in use (e.g. second local worker) — not fatal
             log.warning("metrics_server_unavailable", port=metrics_port, error=str(exc))

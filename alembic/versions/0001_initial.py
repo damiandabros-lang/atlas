@@ -74,7 +74,9 @@ def upgrade() -> None:
     op.create_table(
         "network_services",
         sa.Column("id", sa.Uuid(), primary_key=True, nullable=False),
-        sa.Column("customer_id", sa.Uuid(), sa.ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False),
+        sa.Column(
+            "customer_id", sa.Uuid(), sa.ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False
+        ),
         sa.Column("service_type", sa.String(32), nullable=False),
         sa.Column("service_name", sa.String(255), nullable=False),
         sa.Column("desired_state", _json(), nullable=False),
@@ -139,7 +141,9 @@ def upgrade() -> None:
         sa.Column("allocation_status", sa.String(16), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("released_at", sa.DateTime(timezone=True), nullable=True),
-        sa.UniqueConstraint("resource_type", "resource_value", "scope", name="uq_allocation_type_value_scope"),
+        sa.UniqueConstraint(
+            "resource_type", "resource_value", "scope", name="uq_allocation_type_value_scope"
+        ),
     )
     op.create_index("ix_resource_allocations_service_id", "resource_allocations", ["service_id"])
     op.create_index("ix_allocations_service_type", "resource_allocations", ["service_id", "resource_type"])
@@ -176,7 +180,10 @@ def upgrade() -> None:
             "service_id", sa.Uuid(), sa.ForeignKey("network_services.id", ondelete="CASCADE"), nullable=False
         ),
         sa.Column(
-            "endpoint_id", sa.Uuid(), sa.ForeignKey("service_endpoints.id", ondelete="SET NULL"), nullable=True
+            "endpoint_id",
+            sa.Uuid(),
+            sa.ForeignKey("service_endpoints.id", ondelete="SET NULL"),
+            nullable=True,
         ),
         sa.Column(
             "device_id", sa.Uuid(), sa.ForeignKey("network_devices.id", ondelete="RESTRICT"), nullable=False
