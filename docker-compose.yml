@@ -53,7 +53,7 @@ services:
   # auto-setup creates the `temporal` and `temporal_visibility` databases in the
   # same PostgreSQL instance (separate from the ATLAS business database).
   temporal:
-    image: temporalio/auto-setup:1.25
+    image: temporalio/auto-setup:1.29
     container_name: atlas-temporal
     depends_on:
       postgres:
@@ -84,7 +84,7 @@ services:
     restart: unless-stopped
 
   temporal-ui:
-    image: temporalio/ui:2.31.2
+    image: temporalio/ui:2.56.0
     container_name: atlas-temporal-ui
     depends_on:
       temporal:
@@ -98,7 +98,7 @@ services:
     restart: unless-stopped
 
   temporal-admin-tools:
-    image: temporalio/admin-tools:1.25
+    image: temporalio/admin-tools:1.32
     container_name: atlas-temporal-admin-tools
     profiles: ["tools"]
     depends_on:
@@ -161,7 +161,7 @@ services:
 
   # ------------------------------------------------------- observability ----
   prometheus:
-    image: prom/prometheus:v2.54.1
+    image: prom/prometheus:v2.55.1
     container_name: atlas-prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -175,7 +175,7 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:11.2.0
+    image: grafana/grafana:11.6.16
     container_name: atlas-grafana
     depends_on:
       - prometheus
@@ -195,7 +195,7 @@ services:
     restart: unless-stopped
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.109.0
+    image: otel/opentelemetry-collector-contrib:0.162.0-386
     container_name: atlas-otel-collector
     profiles: ["tracing"]
     command: ["--config=/etc/otelcol/collector.yaml"]
