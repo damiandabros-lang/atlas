@@ -84,7 +84,7 @@ services:
     restart: unless-stopped
 
   temporal-ui:
-    image: temporalio/ui:2.31.2
+    image: temporalio/ui:2.56.0
     container_name: atlas-temporal-ui
     depends_on:
       temporal:
