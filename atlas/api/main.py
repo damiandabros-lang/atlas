@@ -11,8 +11,9 @@ import logging
 import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from importlib import resources as _resources
+from typing import Any, cast
 
 from fastapi import FastAPI, Request, Response
 from fastapi.openapi.utils import get_openapi
@@ -48,7 +49,7 @@ def _configure_observability(app: FastAPI, settings: Settings) -> None:
             log.warning("tracing requested but atlas.observability.tracing is unavailable")
 
 
-def _make_lifespan(settings: Settings) -> Callable[[FastAPI], AsyncIterator[None]]:
+def _make_lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncContextManager[None]]:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         _configure_observability(app, settings)
@@ -125,7 +126,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return RedirectResponse("/ui/topology")
 
     if settings.metrics_enabled:
-        app.add_route(f"{API_PREFIX}/metrics", metrics_app(), methods=["GET"], include_in_schema=False)
+        app.add_route(
+            f"{API_PREFIX}/metrics", cast(Any, metrics_app()), methods=["GET"], include_in_schema=False
+        )
 
     def _openapi() -> dict:
         if app.openapi_schema:

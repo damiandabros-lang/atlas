@@ -9,7 +9,7 @@ because of a missing dashboard counter.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import structlog
@@ -25,12 +25,15 @@ from atlas.db.repositories import ResourcePoolExhaustedError
 # Logging
 # ---------------------------------------------------------------------------
 
+_get_logger: Callable[..., Any]
 try:  # pragma: no cover - exercised only when the observability package is present
     from atlas.observability.logging import get_logger as _get_logger
 except Exception:  # noqa: BLE001 - module may not exist yet / may differ
 
-    def _get_logger(**bind: Any) -> Any:
+    def _fallback_logger(**bind: Any) -> Any:
         return structlog.get_logger("atlas.activities").bind(**bind)
+
+    _get_logger = _fallback_logger
 
 
 def get_logger(**bind: Any) -> Any:

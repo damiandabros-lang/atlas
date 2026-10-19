@@ -6,6 +6,9 @@ the activity *names* (``@activity.defn(name=...)``) stay the contract between th
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 from atlas.activities.allocation import allocate_resources, confirm_allocations, release_resources
 from atlas.activities.configuration import generate_configs, load_decommission_plan, pre_deployment_validation
 from atlas.activities.device_ops import (
@@ -26,7 +29,7 @@ from atlas.activities.state import (
 from atlas.activities.validation import validate_request
 from atlas.activities.verification import commit_service_state, validate_service_connectivity, verify_device
 
-ALL_ACTIVITIES = [
+ALL_ACTIVITIES: list[Callable[..., Any]] = [
     # state / bookkeeping
     transition_status,
     record_workflow_start,

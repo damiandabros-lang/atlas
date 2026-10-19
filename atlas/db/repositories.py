@@ -140,7 +140,7 @@ class ServiceRepository:
         self.session = session
 
     @staticmethod
-    def _with_relations(stmt: Select[tuple[NetworkService]]) -> Select[tuple[NetworkService]]:
+    def _with_relations(stmt: Select[Any]) -> Select[Any]:
         return stmt.options(
             selectinload(NetworkService.endpoints).selectinload(ServiceEndpoint.device),
             selectinload(NetworkService.allocations),
@@ -368,7 +368,7 @@ class AllocationRepository:
             .execution_options(synchronize_session="fetch")
         )
         result = await self.session.execute(stmt)
-        return int(result.rowcount or 0)
+        return int(getattr(result, "rowcount", 0) or 0)
 
     async def release(self, service_id: UUID) -> int:
         """Mark all allocations RELEASED and free the (type,value,scope) slot by deleting rows.
@@ -663,7 +663,7 @@ class IdempotencyRepository:
             .execution_options(synchronize_session="fetch")
         )
         result = await self.session.execute(stmt)
-        return int(result.rowcount or 0)
+        return int(getattr(result, "rowcount", 0) or 0)
 
 
 __all__ = [

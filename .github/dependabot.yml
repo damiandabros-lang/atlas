@@ -3,30 +3,49 @@ updates:
   - package-ecosystem: pip
     directory: "/"
     schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 10
+      interval: monthly
+    open-pull-requests-limit: 3
     groups:
-      opentelemetry:
-        patterns: ["opentelemetry-*"]
-      dev-tooling:
-        patterns: ["pytest*", "ruff", "mypy"]
+      python-deps:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: [dependencies, python]
 
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      actions:
+        patterns: ["*"]
     labels: [dependencies, ci]
 
   - package-ecosystem: docker
     directory: "/deploy/docker"
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 1
+    ignore:
+      # Base image major/minor bumps are a deliberate decision (Python 3.12 pinned by pyproject).
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
     labels: [dependencies, docker]
 
   - package-ecosystem: docker-compose
     directory: "/"
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      compose-images:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      # postgres / prometheus / temporal majors are upgraded on purpose, not by bot.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: [dependencies, docker]
