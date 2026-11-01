@@ -84,7 +84,7 @@ services:
     restart: unless-stopped
 
   temporal-ui:
-    image: temporalio/ui:2.56.0
+    image: temporalio/ui:2.57.0
     container_name: atlas-temporal-ui
     depends_on:
       temporal:
@@ -195,7 +195,7 @@ services:
     restart: unless-stopped
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.162.0-386
+    image: otel/opentelemetry-collector-contrib:0.164.0
     container_name: atlas-otel-collector
     profiles: ["tracing"]
     command: ["--config=/etc/otelcol/collector.yaml"]
